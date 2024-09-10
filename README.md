@@ -118,6 +118,44 @@ deployment.apps/metrics-server-ha patched
 
 Please note that to avoid unschedulable pods, `preferredDuringSchedulingIgnoredDuringExecution` was used for the pod anti-affinity instead of `requiredDuringSchedulingIgnoredDuringExecution`.
 
+cluster autoscaling consideration
+=================================
+
+If the Kapsule cluster has a node pool with autoscaling activated, it would be better to get the internals components to stick to a node pool with a fixed size to avoid repeated deletion and re-creation of the internal components pods, especially for coredns.
+
+To avoid this, an additional patch can be applied.
+
+First, edit the `node-affinity-patch.yaml` file to add the list of node pools without autoscaling activated:
+
+```
+spec:
+  template:
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: k8s.scaleway.com/pool-name
+                operator: In
+                values:
+                - <name of a pool>
+                - <name of an other pool>
+```
+
+Then apply the patch.
+
+```
+$ kubectl patch deploy coredns-ha --patch-file=node-affinity-patch.yaml --type='merge' -n kube-system
+deployment.apps/coredns-ha patched
+```
+
+And eventually, rollout the deployment to ensure the pod are in the right place.
+
+```
+$ kubectl rollout restart deploy coredns-ha -n kube-system
+```
+
 
 support & uninstall
 ===================
